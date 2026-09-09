@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Identity V Win Rate Sheet</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Identity V Win Rate Tracker</h1>
+            <p class="subtitle">Personal Statistics & Analytics</p>
+        </header>
+
+        <main>
+            <!-- Stats Overview -->
+            <section class="stats-overview">
+                <div class="stat-card">
+                    <h3>Total Matches</h3>
+                    <p class="stat-value" id="totalMatches">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Total Wins</h3>
+                    <p class="stat-value wins" id="totalWins">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Win Rate</h3>
+                    <p class="stat-value" id="winRate">0%</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Avg Duration</h3>
+                    <p class="stat-value" id="avgDuration">0 min</p>
+                </div>
+            </section>
+
+            <!-- Add Match Form -->
+            <section class="add-match">
+                <h2>Log New Match</h2>
+                <form id="matchForm">
+                    <div class="form-row">
+                        <input type="date" id="date" required placeholder="Date">
+                        <input type="text" id="character" required placeholder="Character/Role">
+                        <input type="text" id="map" required placeholder="Map">
+                    </div>
+                    <div class="form-row">
+                        <select id="role" required>
+                            <option value="">Select Role</option>
+                            <option value="survivor">Survivor</option>
+                            <option value="hunter">Hunter</option>
+                        </select>
+                        <select id="result" required>
+                            <option value="">Match Result</option>
+                            <option value="true">Win</option>
+                            <option value="false">Loss</option>
+                        </select>
+                        <input type="number" id="duration" required placeholder="Duration (minutes)" min="0">
+                    </div>
+                    <div class="form-row">
+                        <input type="text" id="notes" placeholder="Notes (optional)">
+                    </div>
+                    <button type="submit" class="btn-primary">Add Match</button>
+                </form>
+            </section>
+
+            <!-- Statistics by Character -->
+            <section class="stats-by-character">
+                <h2>Win Rate by Character</h2>
+                <div id="characterStats" class="stats-grid"></div>
+            </section>
+
+            <!-- Statistics by Map -->
+            <section class="stats-by-map">
+                <h2>Win Rate by Map</h2>
+                <div id="mapStats" class="stats-grid"></div>
+            </section>
+
+            <!-- Match History -->
+            <section class="match-history">
+                <h2>Match History</h2>
+                <table id="matchTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Character</th>
+                            <th>Map</th>
+                            <th>Role</th>
+                            <th>Result</th>
+                            <th>Duration</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="matchBody">
+                    </tbody>
+                </table>
+            </section>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
