@@ -9,86 +9,104 @@ function saveData(matches) {
     localStorage.setItem('identityVMatches', JSON.stringify(matches));
 }
 
-// Calculate statistics
-function calculateStats(matches) {
-    const total = matches.length;
-    const wins = matches.filter(m => m.won).length;
-    const losses = total - wins;
-    const winRate = total > 0 ? ((wins / total) * 100).toFixed(1) : 0;
-    const avgDuration = total > 0 ? (matches.reduce((sum, m) => sum + m.duration_minutes, 0) / total).toFixed(1) : 0;
-
-    return { total, wins, losses, winRate, avgDuration };
+// Create a stats bucket for a character or map.
+function createBucket() {
+    return { wins: 0, total: 0, durationSum: 0, lastUpdated: null };
 }
 
-// Calculate stats by character
-function getCharacterStats(matches) {
-    const stats = {};
-    matches.forEach(m => {
-        if (!stats[m.character]) {
-            stats[m.character] = { wins: 0, total: 0 };
-        }
-        stats[m.character].total++;
-        if (m.won) stats[m.character].wins++;
-    });
+// Calculate all statistics in one pass through the matches array.
+function aggregateStats(matches) {
+    const overall = {
+        total: 0,
+        wins: 0,
+        durationSum: 0,
+        lastUpdated: null
+    };
+    const characters = new Map();
+    const maps = new Map();
 
-    return Object.entries(stats).map(([char, data]) => ({
-        character: char,
-        wins: data.wins,
-        total: data.total,
-        winRate: ((data.wins / data.total) * 100).toFixed(1)
-    })).sort((a, b) => b.winRate - a.winRate);
+    for (const match of matches) {
+        const duration = Number(match.duration_minutes) || 0;
+        const updatedAt = match.id || match.date || null;
+
+        overall.total++;
+        overall.wins += match.won ? 1 : 0;
+        overall.durationSum += duration;
+        if (updatedAt && (!overall.lastUpdated || updatedAt > overall.lastUpdated)) {
+            overall.lastUpdated = updatedAt;
+        }
+
+        const groups = [
+            [characters, match.character],
+            [maps, match.map]
+        ];
+
+        for (const [group, key] of groups) {
+            if (!group.has(key)) {
+                group.set(key, createBucket());
+            }
+
+            const bucket = group.get(key);
+            bucket.total++;
+            bucket.wins += match.won ? 1 : 0;
+            bucket.durationSum += duration;
+            if (updatedAt && (!bucket.lastUpdated || updatedAt > bucket.lastUpdated)) {
+                bucket.lastUpdated = updatedAt;
+            }
+        }
+    }
+
+    return { overall, characters, maps };
 }
 
-// Calculate stats by map
-function getMapStats(matches) {
-    const stats = {};
-    matches.forEach(m => {
-        if (!stats[m.map]) {
-            stats[m.map] = { wins: 0, total: 0 };
-        }
-        stats[m.map].total++;
-        if (m.won) stats[m.map].wins++;
-    });
-
-    return Object.entries(stats).map(([map, data]) => ({
-        map: map,
-        wins: data.wins,
-        total: data.total,
-        winRate: ((data.wins / data.total) * 100).toFixed(1)
-    })).sort((a, b) => b.winRate - a.winRate);
+function toDisplayStats(stats, keyName) {
+    return [...stats.entries()]
+        .map(([key, data]) => ({
+            [keyName]: key,
+            wins: data.wins,
+            total: data.total,
+            losses: data.total - data.wins,
+            durationSum: data.durationSum,
+            lastUpdated: data.lastUpdated,
+            winRate: data.total > 0 ? (data.wins / data.total) * 100 : 0
+        }))
+        .sort((a, b) => b.winRate - a.winRate);
 }
 
 // Render overall stats
-function renderStats(matches) {
-    const { total, wins, winRate, avgDuration } = calculateStats(matches);
+function renderStats(overall) {
+    const { total, wins, durationSum } = overall;
+    const winRate = total > 0 ? (wins / total) * 100 : 0;
+    const avgDuration = total > 0 ? durationSum / total : 0;
+
     document.getElementById('totalMatches').textContent = total;
     document.getElementById('totalWins').textContent = wins;
-    document.getElementById('winRate').textContent = winRate + '%';
-    document.getElementById('avgDuration').textContent = avgDuration + ' min';
+    document.getElementById('winRate').textContent = winRate.toFixed(1) + '%';
+    document.getElementById('avgDuration').textContent = avgDuration.toFixed(1) + ' min';
 }
 
 // Render character stats
-function renderCharacterStats(matches) {
-    const charStats = getCharacterStats(matches);
+function renderCharacterStats(stats) {
+    const charStats = toDisplayStats(stats, 'character');
     const container = document.getElementById('characterStats');
     container.innerHTML = charStats.map(stat => `
         <div class="stat-item">
             <strong>${stat.character}</strong>
-            <div class="rate">${stat.winRate}%</div>
-            <small>${stat.wins}W / ${stat.total}L</small>
+            <div class="rate">${stat.winRate.toFixed(1)}%</div>
+            <small>${stat.wins}W / ${stat.losses}L</small>
         </div>
     `).join('');
 }
 
 // Render map stats
-function renderMapStats(matches) {
-    const mapStats = getMapStats(matches);
+function renderMapStats(stats) {
+    const mapStats = toDisplayStats(stats, 'map');
     const container = document.getElementById('mapStats');
     container.innerHTML = mapStats.map(stat => `
         <div class="stat-item">
             <strong>${stat.map}</strong>
-            <div class="rate">${stat.winRate}%</div>
-            <small>${stat.wins}W / ${stat.total}L</small>
+            <div class="rate">${stat.winRate.toFixed(1)}%</div>
+            <small>${stat.wins}W / ${stat.losses}L</small>
         </div>
     `).join('');
 }
@@ -109,11 +127,12 @@ function renderMatchTable(matches) {
     `).join('');
 }
 
-// Render all data
+// Render all data using the same aggregated result for every stats section.
 function renderAll(matches) {
-    renderStats(matches);
-    renderCharacterStats(matches);
-    renderMapStats(matches);
+    const { overall, characters, maps } = aggregateStats(matches);
+    renderStats(overall);
+    renderCharacterStats(characters);
+    renderMapStats(maps);
     renderMatchTable(matches);
 }
 
@@ -146,7 +165,7 @@ document.getElementById('matchForm').addEventListener('submit', function(e) {
 window.addEventListener('DOMContentLoaded', function() {
     // Set today's date as default
     document.getElementById('date').valueAsDate = new Date();
-    
+
     const matches = loadData();
     renderAll(matches);
 });
