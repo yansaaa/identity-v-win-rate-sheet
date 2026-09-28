@@ -283,6 +283,37 @@ tbody tr:last-child td {
     font-weight: 800;
 }
 
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 18px;
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.page-button {
+    padding: 9px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--primary);
+    font: inherit;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+}
+
+.page-button:hover:not(:disabled) {
+    background: var(--primary);
+    color: #fff;
+}
+
+.page-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
 /* Sections */
 section {
     margin-bottom: 28px;
@@ -337,5 +368,14 @@ section h2 {
 
     .btn-primary {
         width: 100%;
+    }
+
+    .pagination {
+        gap: 10px;
+        font-size: 0.9rem;
+    }
+
+    .page-button {
+        padding: 8px 10px;
     }
 }

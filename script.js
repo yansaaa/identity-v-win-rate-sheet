@@ -9,6 +9,9 @@ function saveData(matches) {
     localStorage.setItem('identityVMatches', JSON.stringify(matches));
 }
 
+const PAGE_SIZE = 25;
+let currentPage = 1;
+
 // Create a stats bucket for a character or map.
 function createBucket() {
     return { wins: 0, total: 0, durationSum: 0, lastUpdated: null };
@@ -111,10 +114,29 @@ function renderMapStats(stats) {
     `).join('');
 }
 
-// Render match history table
+function renderPagination(totalMatches, totalPages) {
+    const pagination = document.getElementById('pagination');
+    const pageInfo = document.getElementById('pageInfo');
+    const previousButton = document.getElementById('previousPage');
+    const nextButton = document.getElementById('nextPage');
+
+    pagination.hidden = totalMatches === 0;
+    pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+    previousButton.disabled = currentPage === 1;
+    nextButton.disabled = currentPage === totalPages;
+}
+
+// Render only the current page of match history.
 function renderMatchTable(matches) {
     const tbody = document.getElementById('matchBody');
-    tbody.innerHTML = [...matches].reverse().map(m => `
+    const sortedMatches = [...matches].reverse();
+    const totalPages = Math.max(1, Math.ceil(sortedMatches.length / PAGE_SIZE));
+
+    currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pageMatches = sortedMatches.slice(start, start + PAGE_SIZE);
+
+    tbody.innerHTML = pageMatches.map(m => `
         <tr>
             <td>${m.date}</td>
             <td>${m.character}</td>
@@ -125,6 +147,8 @@ function renderMatchTable(matches) {
             <td>${m.notes || '-'}</td>
         </tr>
     `).join('');
+
+    renderPagination(sortedMatches.length, totalPages);
 }
 
 // Render all data using the same aggregated result for every stats section.
@@ -135,6 +159,24 @@ function renderAll(matches) {
     renderMapStats(maps);
     renderMatchTable(matches);
 }
+
+// Handle pagination without recalculating statistics.
+document.getElementById('previousPage').addEventListener('click', function() {
+    if (currentPage > 1) {
+        currentPage--;
+        renderMatchTable(loadData());
+    }
+});
+
+document.getElementById('nextPage').addEventListener('click', function() {
+    const matches = loadData();
+    const totalPages = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
+
+    if (currentPage < totalPages) {
+        currentPage++;
+        renderMatchTable(matches);
+    }
+});
 
 // Handle form submission
 document.getElementById('matchForm').addEventListener('submit', function(e) {
@@ -154,6 +196,7 @@ document.getElementById('matchForm').addEventListener('submit', function(e) {
     const matches = loadData();
     matches.push(match);
     saveData(matches);
+    currentPage = 1;
     renderAll(matches);
 
     // Reset form
@@ -163,9 +206,6 @@ document.getElementById('matchForm').addEventListener('submit', function(e) {
 
 // Initialize on page load
 window.addEventListener('DOMContentLoaded', function() {
-    // Set today's date as default
     document.getElementById('date').valueAsDate = new Date();
-
-    const matches = loadData();
-    renderAll(matches);
+    renderAll(loadData());
 });
