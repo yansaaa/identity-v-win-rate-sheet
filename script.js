@@ -1,211 +1,147 @@
-// Load data from localStorage
-function loadData() {
-    const stored = localStorage.getItem('identityVMatches');
-    return stored ? JSON.parse(stored) : [];
-}
-
-// Save data to localStorage
-function saveData(matches) {
-    localStorage.setItem('identityVMatches', JSON.stringify(matches));
-}
-
+const STORAGE_KEY = 'identityVMatches';
 const PAGE_SIZE = 25;
 let currentPage = 1;
+let matches = [];
 
-// Create a stats bucket for a character or map.
-function createBucket() {
-    return { wins: 0, total: 0, durationSum: 0, lastUpdated: null };
+const $ = (id) => document.getElementById(id);
+
+function normalizeMatch(value) {
+    if (!value || typeof value !== 'object') return null;
+    const duration = Number(value.duration_minutes);
+    const date = typeof value.date === 'string' ? value.date : '';
+    const character = typeof value.character === 'string' ? value.character.trim() : '';
+    const map = typeof value.map === 'string' ? value.map.trim() : '';
+    const role = value.role === 'hunter' || value.role === 'survivor' ? value.role : '';
+    if (!date || !character || !map || !role || !Number.isFinite(duration) || duration < 1) return null;
+    return {
+        id: Number.isFinite(Number(value.id)) ? Number(value.id) : Date.now(),
+        date, character, map, role, won: value.won === true,
+        duration_minutes: Math.round(duration),
+        notes: typeof value.notes === 'string' ? value.notes.trim().slice(0, 200) : ''
+    };
 }
 
-// Calculate all statistics in one pass through the matches array.
-function aggregateStats(matches) {
-    const overall = {
-        total: 0,
-        wins: 0,
-        durationSum: 0,
-        lastUpdated: null
-    };
+function loadData() {
+    try {
+        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        return Array.isArray(stored) ? stored.map(normalizeMatch).filter(Boolean) : [];
+    } catch (error) {
+        console.warn('Could not load saved matches.', error);
+        return [];
+    }
+}
+
+function saveData(data) {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (error) {
+        console.warn('Could not save matches.', error);
+    }
+}
+
+function createBucket() { return { wins: 0, total: 0, durationSum: 0 }; }
+
+function aggregateStats(data) {
+    const overall = { total: 0, wins: 0, durationSum: 0 };
     const characters = new Map();
     const maps = new Map();
-
-    for (const match of matches) {
-        const duration = Number(match.duration_minutes) || 0;
-        const updatedAt = match.id || match.date || null;
-
-        overall.total++;
+    data.forEach((match) => {
+        const duration = match.duration_minutes;
+        overall.total += 1;
         overall.wins += match.won ? 1 : 0;
         overall.durationSum += duration;
-        if (updatedAt && (!overall.lastUpdated || updatedAt > overall.lastUpdated)) {
-            overall.lastUpdated = updatedAt;
-        }
-
-        const groups = [
-            [characters, match.character],
-            [maps, match.map]
-        ];
-
-        for (const [group, key] of groups) {
-            if (!group.has(key)) {
-                group.set(key, createBucket());
-            }
-
-            const bucket = group.get(key);
-            bucket.total++;
+        [[characters, match.character], [maps, match.map]].forEach(([group, key]) => {
+            const bucket = group.get(key) || createBucket();
+            bucket.total += 1;
             bucket.wins += match.won ? 1 : 0;
             bucket.durationSum += duration;
-            if (updatedAt && (!bucket.lastUpdated || updatedAt > bucket.lastUpdated)) {
-                bucket.lastUpdated = updatedAt;
-            }
-        }
-    }
-
+            group.set(key, bucket);
+        });
+    });
     return { overall, characters, maps };
 }
 
-function toDisplayStats(stats, keyName) {
-    return [...stats.entries()]
-        .map(([key, data]) => ({
-            [keyName]: key,
-            wins: data.wins,
-            total: data.total,
-            losses: data.total - data.wins,
-            durationSum: data.durationSum,
-            lastUpdated: data.lastUpdated,
-            winRate: data.total > 0 ? (data.wins / data.total) * 100 : 0
-        }))
-        .sort((a, b) => b.winRate - a.winRate);
+function displayStats(stats, keyName) {
+    return [...stats.entries()].map(([key, data]) => ({
+        [keyName]: key, ...data, losses: data.total - data.wins,
+        winRate: data.total ? (data.wins / data.total) * 100 : 0
+    })).sort((a, b) => b.winRate - a.winRate || b.total - a.total);
 }
 
-// Render overall stats
 function renderStats(overall) {
-    const { total, wins, durationSum } = overall;
-    const winRate = total > 0 ? (wins / total) * 100 : 0;
-    const avgDuration = total > 0 ? durationSum / total : 0;
-
-    document.getElementById('totalMatches').textContent = total;
-    document.getElementById('totalWins').textContent = wins;
-    document.getElementById('winRate').textContent = winRate.toFixed(1) + '%';
-    document.getElementById('avgDuration').textContent = avgDuration.toFixed(1) + ' min';
+    $('totalMatches').textContent = overall.total;
+    $('totalWins').textContent = overall.wins;
+    $('winRate').textContent = `${overall.total ? ((overall.wins / overall.total) * 100).toFixed(1) : '0.0'}%`;
+    $('avgDuration').textContent = `${overall.total ? (overall.durationSum / overall.total).toFixed(1) : '0.0'} min`;
 }
 
-// Render character stats
-function renderCharacterStats(stats) {
-    const charStats = toDisplayStats(stats, 'character');
-    const container = document.getElementById('characterStats');
-    container.innerHTML = charStats.map(stat => `
-        <div class="stat-item">
-            <strong>${stat.character}</strong>
-            <div class="rate">${stat.winRate.toFixed(1)}%</div>
-            <small>${stat.wins}W / ${stat.losses}L</small>
-        </div>
-    `).join('');
+function renderGroupStats(containerId, stats, keyName) {
+    const container = $(containerId);
+    container.replaceChildren();
+    const values = displayStats(stats, keyName);
+    if (!values.length) { container.textContent = 'No matches recorded yet.'; return; }
+    const fragment = document.createDocumentFragment();
+    values.forEach((stat) => {
+        const item = document.createElement('div'); item.className = 'stat-item';
+        const name = document.createElement('strong'); name.textContent = stat[keyName];
+        const rate = document.createElement('div'); rate.className = 'rate'; rate.textContent = `${stat.winRate.toFixed(1)}%`;
+        const record = document.createElement('small'); record.textContent = `${stat.wins}W / ${stat.losses}L`;
+        item.append(name, rate, record); fragment.appendChild(item);
+    });
+    container.appendChild(fragment);
 }
 
-// Render map stats
-function renderMapStats(stats) {
-    const mapStats = toDisplayStats(stats, 'map');
-    const container = document.getElementById('mapStats');
-    container.innerHTML = mapStats.map(stat => `
-        <div class="stat-item">
-            <strong>${stat.map}</strong>
-            <div class="rate">${stat.winRate.toFixed(1)}%</div>
-            <small>${stat.wins}W / ${stat.losses}L</small>
-        </div>
-    `).join('');
+function addCell(row, text, className = '') {
+    const cell = document.createElement('td'); cell.textContent = text;
+    if (className) cell.className = className;
+    row.appendChild(cell);
 }
 
-function renderPagination(totalMatches, totalPages) {
-    const pagination = document.getElementById('pagination');
-    const pageInfo = document.getElementById('pageInfo');
-    const previousButton = document.getElementById('previousPage');
-    const nextButton = document.getElementById('nextPage');
-
-    pagination.hidden = totalMatches === 0;
-    pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
-    previousButton.disabled = currentPage === 1;
-    nextButton.disabled = currentPage === totalPages;
-}
-
-// Render only the current page of match history.
-function renderMatchTable(matches) {
-    const tbody = document.getElementById('matchBody');
-    const sortedMatches = [...matches].reverse();
-    const totalPages = Math.max(1, Math.ceil(sortedMatches.length / PAGE_SIZE));
-
+function renderMatchTable(data) {
+    const sorted = [...data].sort((a, b) => b.id - a.id);
+    const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
     currentPage = Math.min(Math.max(currentPage, 1), totalPages);
-    const start = (currentPage - 1) * PAGE_SIZE;
-    const pageMatches = sortedMatches.slice(start, start + PAGE_SIZE);
-
-    tbody.innerHTML = pageMatches.map(m => `
-        <tr>
-            <td>${m.date}</td>
-            <td>${m.character}</td>
-            <td>${m.map}</td>
-            <td>${m.role.charAt(0).toUpperCase() + m.role.slice(1)}</td>
-            <td class="result-${m.won ? 'win' : 'loss'}">${m.won ? 'Win' : 'Loss'}</td>
-            <td>${m.duration_minutes} min</td>
-            <td>${m.notes || '-'}</td>
-        </tr>
-    `).join('');
-
-    renderPagination(sortedMatches.length, totalPages);
+    const pageMatches = sorted.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+    const body = $('matchBody'); body.replaceChildren();
+    pageMatches.forEach((match) => {
+        const row = document.createElement('tr');
+        addCell(row, match.date); addCell(row, match.character); addCell(row, match.map);
+        addCell(row, match.role.charAt(0).toUpperCase() + match.role.slice(1));
+        addCell(row, match.won ? 'Win' : 'Loss', `result-${match.won ? 'win' : 'loss'}`);
+        addCell(row, `${match.duration_minutes} min`); addCell(row, match.notes || '-'); body.appendChild(row);
+    });
+    $('pagination').hidden = sorted.length === 0;
+    $('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
+    $('previousPage').disabled = currentPage === 1;
+    $('nextPage').disabled = currentPage === totalPages;
 }
 
-// Render all data using the same aggregated result for every stats section.
-function renderAll(matches) {
+function renderAll() {
     const { overall, characters, maps } = aggregateStats(matches);
-    renderStats(overall);
-    renderCharacterStats(characters);
-    renderMapStats(maps);
-    renderMatchTable(matches);
+    renderStats(overall); renderGroupStats('characterStats', characters, 'character');
+    renderGroupStats('mapStats', maps, 'map'); renderMatchTable(matches);
 }
 
-// Handle pagination without recalculating statistics.
-document.getElementById('previousPage').addEventListener('click', function() {
-    if (currentPage > 1) {
-        currentPage--;
-        renderMatchTable(loadData());
-    }
-});
+function showFormError(message = '') { $('formError').textContent = message; $('formError').hidden = !message; }
 
-document.getElementById('nextPage').addEventListener('click', function() {
-    const matches = loadData();
-    const totalPages = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
+function handleSubmit(event) {
+    event.preventDefault(); showFormError();
+    const form = event.currentTarget;
+    if (!form.reportValidity()) return;
+    const match = normalizeMatch({
+        id: Date.now(), date: $('date').value, character: $('character').value,
+        map: $('map').value, role: $('role').value, won: $('result').value === 'true',
+        duration_minutes: $('duration').value, notes: $('notes').value
+    });
+    if (!match) { showFormError('Please enter valid match details.'); return; }
+    matches.push(match); saveData(matches); currentPage = 1; renderAll();
+    form.reset(); $('date').valueAsDate = new Date(); $('character').focus();
+}
 
-    if (currentPage < totalPages) {
-        currentPage++;
-        renderMatchTable(matches);
-    }
-});
-
-// Handle form submission
-document.getElementById('matchForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-
-    const match = {
-        id: Date.now(),
-        date: document.getElementById('date').value,
-        character: document.getElementById('character').value,
-        map: document.getElementById('map').value,
-        role: document.getElementById('role').value,
-        won: document.getElementById('result').value === 'true',
-        duration_minutes: parseInt(document.getElementById('duration').value),
-        notes: document.getElementById('notes').value
-    };
-
-    const matches = loadData();
-    matches.push(match);
-    saveData(matches);
-    currentPage = 1;
-    renderAll(matches);
-
-    // Reset form
-    this.reset();
-    document.getElementById('date').valueAsDate = new Date();
-});
-
-// Initialize on page load
-window.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('date').valueAsDate = new Date();
-    renderAll(loadData());
+document.addEventListener('DOMContentLoaded', () => {
+    matches = loadData(); $('date').valueAsDate = new Date();
+    $('matchForm').addEventListener('submit', handleSubmit);
+    $('previousPage').addEventListener('click', () => { currentPage -= 1; renderMatchTable(matches); });
+    $('nextPage').addEventListener('click', () => { currentPage += 1; renderMatchTable(matches); });
+    renderAll();
 });

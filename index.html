@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Track Identity V matches and review win-rate statistics.">
     <title>Identity V Win Rate Sheet</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -10,88 +11,69 @@
     <div class="container">
         <header>
             <h1>Identity V Win Rate Tracker</h1>
-            <p class="subtitle">Personal Statistics & Analytics</p>
+            <p class="subtitle">Personal Statistics &amp; Analytics</p>
         </header>
 
         <main>
-            <!-- Stats Overview -->
-            <section class="stats-overview">
+            <section class="stats-overview" aria-label="Overall statistics">
                 <div class="stat-card">
-                    <h3>Total Matches</h3>
-                    <p class="stat-value" id="totalMatches">0</p>
+                    <h2>Total Matches</h2>
+                    <p class="stat-value" id="totalMatches" aria-live="polite">0</p>
                 </div>
                 <div class="stat-card">
-                    <h3>Total Wins</h3>
-                    <p class="stat-value wins" id="totalWins">0</p>
+                    <h2>Total Wins</h2>
+                    <p class="stat-value wins" id="totalWins" aria-live="polite">0</p>
                 </div>
                 <div class="stat-card">
-                    <h3>Win Rate</h3>
-                    <p class="stat-value" id="winRate">0%</p>
+                    <h2>Win Rate</h2>
+                    <p class="stat-value" id="winRate" aria-live="polite">0%</p>
                 </div>
                 <div class="stat-card">
-                    <h3>Avg Duration</h3>
-                    <p class="stat-value" id="avgDuration">0 min</p>
+                    <h2>Avg Duration</h2>
+                    <p class="stat-value" id="avgDuration" aria-live="polite">0 min</p>
                 </div>
             </section>
 
-            <!-- Add Match Form -->
-            <section class="add-match">
-                <h2>Log New Match</h2>
+            <section class="add-match" aria-labelledby="add-match-heading">
+                <h2 id="add-match-heading">Log New Match</h2>
                 <form id="matchForm">
                     <div class="form-row">
-                        <input type="date" id="date" required placeholder="Date">
-                        <input type="text" id="character" required placeholder="Character/Role">
-                        <input type="text" id="map" required placeholder="Map">
+                        <div class="field"><label for="date">Date</label><input type="date" id="date" required></div>
+                        <div class="field"><label for="character">Character</label><input type="text" id="character" required maxlength="50" autocomplete="off"></div>
+                        <div class="field"><label for="map">Map</label><input type="text" id="map" required maxlength="50" autocomplete="off"></div>
                     </div>
                     <div class="form-row">
-                        <select id="role" required>
-                            <option value="">Select Role</option>
-                            <option value="survivor">Survivor</option>
-                            <option value="hunter">Hunter</option>
-                        </select>
-                        <select id="result" required>
-                            <option value="">Match Result</option>
-                            <option value="true">Win</option>
-                            <option value="false">Loss</option>
-                        </select>
-                        <input type="number" id="duration" required placeholder="Duration (minutes)" min="0">
+                        <div class="field"><label for="role">Role</label><select id="role" required><option value="">Select role</option><option value="survivor">Survivor</option><option value="hunter">Hunter</option></select></div>
+                        <div class="field"><label for="result">Result</label><select id="result" required><option value="">Match result</option><option value="true">Win</option><option value="false">Loss</option></select></div>
+                        <div class="field"><label for="duration">Duration (minutes)</label><input type="number" id="duration" required min="1" max="300" step="1" inputmode="numeric"></div>
                     </div>
                     <div class="form-row">
-                        <input type="text" id="notes" placeholder="Notes (optional)">
+                        <div class="field"><label for="notes">Notes <span>(optional)</span></label><input type="text" id="notes" maxlength="200" autocomplete="off"></div>
                     </div>
+                    <p id="formError" class="form-error" role="alert" hidden></p>
                     <button type="submit" class="btn-primary">Add Match</button>
                 </form>
             </section>
 
-            <!-- Statistics by Character -->
-            <section class="stats-by-character">
-                <h2>Win Rate by Character</h2>
-                <div id="characterStats" class="stats-grid"></div>
+            <section aria-labelledby="character-heading">
+                <h2 id="character-heading">Win Rate by Character</h2>
+                <div id="characterStats" class="stats-grid" aria-live="polite"></div>
             </section>
 
-            <!-- Statistics by Map -->
-            <section class="stats-by-map">
-                <h2>Win Rate by Map</h2>
-                <div id="mapStats" class="stats-grid"></div>
+            <section aria-labelledby="map-heading">
+                <h2 id="map-heading">Win Rate by Map</h2>
+                <div id="mapStats" class="stats-grid" aria-live="polite"></div>
             </section>
 
-            <!-- Match History -->
-            <section class="match-history">
-                <h2>Match History</h2>
-                <table id="matchTable">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Character</th>
-                            <th>Map</th>
-                            <th>Role</th>
-                            <th>Result</th>
-                            <th>Duration</th>
-                            <th>Notes</th>
-                        </tr>
-                    </thead>
-                    <tbody id="matchBody"></tbody>
-                </table>
+            <section class="match-history" aria-labelledby="history-heading">
+                <h2 id="history-heading">Match History</h2>
+                <div class="table-wrapper">
+                    <table id="matchTable">
+                        <caption class="sr-only">Logged Identity V matches</caption>
+                        <thead><tr><th scope="col">Date</th><th scope="col">Character</th><th scope="col">Map</th><th scope="col">Role</th><th scope="col">Result</th><th scope="col">Duration</th><th scope="col">Notes</th></tr></thead>
+                        <tbody id="matchBody"></tbody>
+                    </table>
+                </div>
                 <nav id="pagination" class="pagination" aria-label="Match history pages" hidden>
                     <button type="button" id="previousPage" class="page-button">Previous</button>
                     <span id="pageInfo" aria-live="polite">Page 1 of 1</span>
@@ -100,7 +82,6 @@
             </section>
         </main>
     </div>
-
-    <script src="script.js"></script>
+    <script src="script.js" defer></script>
 </body>
 </html>
